@@ -1,3 +1,4 @@
+# ATTENTION! This is a backup development branch. The code which is pushed here is not complete and the app is not runnable. Stable version can be downloaded from master branch.
 # lzrs - Implementation of LZ77-based archivator made in Rust
 
 ### Description
