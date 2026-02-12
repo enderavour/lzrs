@@ -26,7 +26,8 @@ To extract files from archive:
 cargo run -- -d archive.lzrs
 ```
 
-- The source code of LZ77 compression and decompression algorithms was partially inspired by and rewritten from [wolfie-things/lz77-algorithm](https://github.com/wolfie-things/lz77-algorithm)
+- The source code of LZ77 compression and decompression algorithm was partially inspired by and rewritten from [wolfie-things/lz77-algorithm](https://github.com/wolfie-things/lz77-algorithm)
+- The source code of LZ78 compresion and decompression algorithm was partially inspired by and rewritten from [Kumar-laxmi/Algorithms](https://github.com/Kumar-laxmi/Algorithms/blob/main/C++/Data%20Compression/LZ78.cpp)
 - Contributors are welcomed.
 
 ### TODO issues
