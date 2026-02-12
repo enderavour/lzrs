@@ -8,7 +8,7 @@ cargo run -- -h
 ```
 - To download and run the project:
 ```
-git clone https://github.com/enderavour/lz77-rs.git
+git clone https://github.com/enderavour/lzrs.git
 ```
 ```
 cd lz77-rs
