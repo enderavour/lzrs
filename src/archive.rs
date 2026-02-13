@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use crate::{LOOKAHEAD_BUFFER_SIZE, SEARCH_BUFFER_SIZE, dearchive::IntoBytes, lz77, lz78};
 use std::fs::File;
 use memmap2::MmapOptions;
+use rand::RngExt;
 use crate::args::CompressingMode;
 
 pub struct LZRSEntry
@@ -15,6 +16,7 @@ pub struct LZRSEntry
 pub struct LZRSArchiveBuilder
 {
     entries: Vec<LZRSEntry>,
+    random_salt: u8,
     compression_method: u32,
     compressed_blobs: Vec<Vec<u8>>
 }
@@ -23,8 +25,10 @@ impl LZRSArchiveBuilder
 {
     pub fn new() -> Self
     {
+        let mut rng = rand::rng();
         LZRSArchiveBuilder { 
             entries: Vec::new(), 
+            random_salt: rng.random_range(1..255),
             compression_method: 0,
             compressed_blobs: Vec::new() 
         }
@@ -44,11 +48,12 @@ impl LZRSArchiveBuilder
         let mut size = 0;
 
         size += 4; // signature
+        size += 1; // random salt
         size += 4; // compression method (LZ77 or LZ78)
         size += 8; // entries count
         for entry in self.entries.iter()
         {
-            size += 8 + 8 + 8 + 8 + entry.file_name.len() as u64;
+            size += 8 + 8 + 8 + 8 + 1 + entry.file_name.len() as u64;
         }
         size
     }
@@ -66,7 +71,7 @@ impl LZRSArchiveBuilder
 
     pub fn add_file(&mut self, name: String, data: &[u8], compressing_mode: CompressingMode)
     {
-        let compressed_data: Vec<u8>; 
+        let mut compressed_data: Vec<u8>; 
         
         match compressing_mode 
         {
@@ -84,6 +89,8 @@ impl LZRSArchiveBuilder
                 compressed_data = lz78::compress(data).to_bytes();
             }
         }
+
+        compressed_data.iter_mut().for_each(|b| *b ^= self.random_salt);
 
         self.entries.push(LZRSEntry { 
             compressed_size: compressed_data.len() as u64,
@@ -108,20 +115,43 @@ impl LZRSArchiveBuilder
         self.finalize_offsets();
 
         // Serialization of header
-
         w.write_all(b"LZRS")?; // Signature
-        w.write_all(&self.compression_method.to_le_bytes())?; // Compression Method
-        w.write_all(&(self.entries.len() as u64).to_le_bytes())?; // Entries count
 
-        for e in self.entries.iter()
+        w.write_all(&[self.random_salt])?; // Random XOR cypher value
+
+        let compr_method = &mut self.compression_method.to_le_bytes();
+        compr_method.iter_mut().for_each(|b| *b ^= self.random_salt);
+
+        w.write_all(compr_method)?; // Compression Method
+
+        let entries_count = &mut (self.entries.len() as u64).to_le_bytes();
+        entries_count.iter_mut().for_each(|b| *b ^= self.random_salt);
+
+        w.write_all(entries_count)?; // Entries Count
+
+        for e in self.entries.iter_mut()
         {
-            w.write_all(&e.compressed_size.to_le_bytes())?;
-            w.write_all(&e.original_size.to_le_bytes())?;
-            w.write_all(&e.data_offset.to_le_bytes())?;
+            let compressed_size = &mut e.compressed_size.to_le_bytes();
+            compressed_size.iter_mut().for_each(|b| *b ^= self.random_salt);
+            w.write_all(compressed_size)?;
+            
+            let original_size = &mut e.original_size.to_le_bytes();
+            original_size.iter_mut().for_each(|b| *b ^= self.random_salt);
+            w.write_all(original_size)?;
 
-            let file_name = e.file_name.as_bytes();
+            let data_offset = &mut e.data_offset.to_le_bytes();
+            data_offset.iter_mut().for_each(|b| *b ^= self.random_salt);
+            w.write_all(data_offset)?;
+
+            let file_name = unsafe { e.file_name.as_bytes_mut() };
+            file_name.iter_mut().for_each(|b| *b ^= self.random_salt);
+
             let name_len = file_name.len() as u64;
-            w.write_all(&name_len.to_le_bytes())?;
+
+            let name_len_bytes = &mut name_len.to_le_bytes();
+            name_len_bytes.iter_mut().for_each(|b| *b ^= self.random_salt);
+
+            w.write_all(name_len_bytes)?;
             w.write_all(file_name)?;
         }
 

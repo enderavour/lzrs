@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 memmap2 = "0.9.9"
 clap =  { version = "4.5.57", features = ["derive"] }
+rand = "0.10.0"

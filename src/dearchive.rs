@@ -7,6 +7,7 @@ use crate::archive::LZRSEntry;
 use crate::lz78::{self, Lz78Token};
 
 static mut COMPRESSION_METHOD: u32 = 0;
+static mut RANDOM_SALT: u8 = 0;
 
 pub struct DecompressedFileEntry
 {
@@ -14,7 +15,7 @@ pub struct DecompressedFileEntry
     contents: Vec<u8>
 }
 
-pub fn compose_entries(archive_source: &[u8]) -> Vec<LZRSEntry>
+pub fn compose_entries(archive_source: &mut [u8]) -> Vec<LZRSEntry>
 {
     let mut token_array = Vec::new();
 
@@ -25,38 +26,47 @@ pub fn compose_entries(archive_source: &[u8]) -> Vec<LZRSEntry>
         exit(-1);
     }
 
+    let random_salt = *(&archive_source[4..5][0]);
+    unsafe { RANDOM_SALT = random_salt; }
+
     let mut compression_method_buffer = [0u8; 4];
-    compression_method_buffer.copy_from_slice(&archive_source[4..8]);
+    compression_method_buffer.copy_from_slice(&archive_source[5..9]);
+    compression_method_buffer.iter_mut().for_each(|b| *b ^= random_salt);
     let compression_method = u32::from_le_bytes(compression_method_buffer);
 
     unsafe { COMPRESSION_METHOD = compression_method };
 
     let mut buffer = [0u8; 8];
-    buffer.copy_from_slice(&archive_source[8..16]);
+    buffer.copy_from_slice(&archive_source[9..17]);
 
-    let mut index = 16;
+    let mut index = 17;
     let entries_count = u64::from_le_bytes(buffer);
 
     for _ in 0..entries_count
     {
         let compressed_size_buf = &archive_source[index..index + 8];
         buffer.copy_from_slice(compressed_size_buf);
+        buffer.iter_mut().for_each(|b| *b ^= random_salt);
         let compressed_size = u64::from_le_bytes(buffer);
         index += 8;
         let original_size_buf = &archive_source[index..index + 8];
         buffer.copy_from_slice(original_size_buf);
+        buffer.iter_mut().for_each(|b| *b ^= random_salt);
         let original_size = u64::from_le_bytes(buffer);
         index += 8;
         let data_offset_buf = &archive_source[index..index + 8];
         buffer.copy_from_slice(data_offset_buf);
+        buffer.iter_mut().for_each(|b| *b ^= random_salt);
         let data_offset = u64::from_le_bytes(buffer);
         index += 8;
         let name_len_buf = &archive_source[index..index + 8];
         buffer.copy_from_slice(name_len_buf);
+        buffer.iter_mut().for_each(|b| *b ^= random_salt);
         let name_len = u64::from_le_bytes(buffer);
         index += 8;
 
-        let filename_buf = &archive_source[index..index + name_len as usize];
+        let filename_buf = &mut archive_source[index..index + name_len as usize];
+        filename_buf.iter_mut().for_each(|b| *b ^= random_salt);
         let filename = str::from_utf8(filename_buf).unwrap();
         index += name_len as usize;
         token_array.push(LZRSEntry {
@@ -86,6 +96,7 @@ pub fn decompress_file_payloads(archive_contents: &[u8], entries: Vec<LZRSEntry>
             while processed_len + 5 <= data.len()
             {
                 buf.copy_from_slice(&data[processed_len..processed_len + 5]);
+                buf.iter_mut().for_each(|b| *b ^= unsafe { RANDOM_SALT });
                 let token = Lz77Token::from_bytes(buf);
                 tokens.push(token);
                 processed_len += 5;
@@ -125,7 +136,7 @@ pub fn decompress_file_payloads(archive_contents: &[u8], entries: Vec<LZRSEntry>
     decompressed
 }
 
-pub fn extract_archive(archive_payload: &[u8]) -> io::Result<()>
+pub fn extract_archive(archive_payload: &mut [u8]) -> io::Result<()>
 {
     let entries = compose_entries(archive_payload);
 

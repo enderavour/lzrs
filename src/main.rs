@@ -4,7 +4,7 @@ mod dearchive;
 mod archive;
 mod args;
 use std::error::Error;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use archive::LZRSArchiveBuilder;
 use clap::Parser;
 use memmap2::MmapOptions;
@@ -67,11 +67,15 @@ fn main() -> Result<(), Box<dyn Error>>
         let entered_file_name = &command_line_args.files[0];
         if entered_file_name.ends_with(".lzrs") 
         {
-            let mapped_archive = unsafe {
-                MmapOptions::new().map(&File::open(entered_file_name.clone()).unwrap()).unwrap()
+            let archive = OpenOptions::new()
+                                    .read(true)
+                                    .write(true)
+                                    .open(entered_file_name)?;
+            let mut mapped_archive = unsafe {
+                MmapOptions::new().map_mut(&archive).unwrap()
             };
 
-            dearchive::extract_archive(&mapped_archive.iter().as_slice())?;
+            dearchive::extract_archive(mapped_archive.as_mut())?;
         }
         else 
         {
