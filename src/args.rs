@@ -5,6 +5,7 @@ use clap::{Parser, ArgAction, ValueEnum};
     version = "0.5", 
     about = "Archivator program based on LZ77/78 compressing algorithm"
 )]
+
 pub struct LZRSArgs
 {
     #[arg(long, short, value_enum, default_value_t = CompressingMode::LZ78, help = "Select compression algorithm. LZ77 or LZ78")]
