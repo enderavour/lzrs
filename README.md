@@ -13,6 +13,7 @@ git clone https://github.com/enderavour/lzrs.git
 ```
 cd lzrs
 ```
+
 To create an archive (.lzrs):
 ```
 cargo run -- -c file1.txt file2.txt -o archive.lzrs
